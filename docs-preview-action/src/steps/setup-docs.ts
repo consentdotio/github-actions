@@ -22,15 +22,21 @@ export function setupDocsWithScript(consentGitToken?: string): void {
 		core.info('PR from fork detected: skipping docs setup');
 		return;
 	}
+	// Run from the repository workspace, not the action directory
+	const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
 	const env = {
 		...process.env,
 		CONSENT_GIT_TOKEN: consentGitToken || process.env.CONSENT_GIT_TOKEN || '',
 	};
-	core.info('Running docs setup script via pnpm tsx scripts/setup-docs.ts');
+	core.info(`Running docs setup script via pnpm tsx scripts/setup-docs.ts from ${workspace}`);
 	const result = spawnSync(
 		'pnpm',
 		['tsx', 'scripts/setup-docs.ts', '--vercel'],
-		{ stdio: 'inherit', env }
+		{ 
+			stdio: 'inherit', 
+			env,
+			cwd: workspace
+		}
 	);
 	if (result.error) {
 		throw result.error;
