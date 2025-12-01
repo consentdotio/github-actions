@@ -118,6 +118,11 @@ function walkFiles(cwd: string): string[] {
 				if (isRoot && rootIgnoreDirs.has(entry.name)) {
 					continue;
 				}
+				// Always include .c15t directory (needed for build scripts)
+				if (entry.name === '.c15t') {
+					out.push(...walk(fullPath, false));
+					continue;
+				}
 				if (ignoreDirs.has(entry.name)) {
 					continue;
 				}
@@ -270,6 +275,20 @@ export async function deployToVercel(
 		console.log(`   Examples: ${scriptsFiles.slice(0, 5).join(', ')}${scriptsFiles.length > 5 ? '...' : ''}`);
 	} else {
 		console.log('⚠️  No scripts files found in deployment!');
+	}
+	// Debug: check for .c15t directory
+	const c15tFiles = filesList.filter((f) => f.startsWith('.c15t/'));
+	if (c15tFiles.length > 0) {
+		console.log(`📦 Including ${c15tFiles.length} .c15t files in deployment`);
+		console.log(`   Examples: ${c15tFiles.slice(0, 5).join(', ')}${c15tFiles.length > 5 ? '...' : ''}`);
+	} else {
+		console.log('⚠️  No .c15t files found in deployment!');
+		const c15tPath = path.join(cwd, '.c15t');
+		if (existsSync(c15tPath)) {
+			console.log(`   But .c15t directory exists at ${c15tPath} - it may be filtered out`);
+		} else {
+			console.log(`   .c15t directory does not exist at ${c15tPath}`);
+		}
 	}
 	const files = filesList.map((file) => {
 		const data = readFileSync(path.join(cwd, file));
