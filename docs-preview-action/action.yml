@@ -212,7 +212,8 @@ runs:
               export PATH="$PNPM_HOME:$PATH"
             fi
           fi
-          pnpm install --frozen-lockfile || pnpm install
+          # Try frozen lockfile first, fall back to regular install if lockfile is outdated
+          pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
         fi
     - name: Run docs preview action (tsx)
       shell: bash
