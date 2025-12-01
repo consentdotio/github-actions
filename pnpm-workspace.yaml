@@ -1,0 +1,4 @@
+packages:
+  - 'bundle-analysis-action'
+  - 'docs-preview-action'
+
