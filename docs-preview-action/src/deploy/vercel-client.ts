@@ -210,7 +210,9 @@ function templateAliasDomains(domains: string[] | undefined): string[] {
 export async function deployToVercel(
 	options: VercelDeployOptions
 ): Promise<VercelDeployResult> {
-	const cwd = path.resolve(options.workingDirectory || '.');
+	// Resolve working directory relative to repository workspace, not action directory
+	const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
+	const cwd = path.resolve(workspace, options.workingDirectory || '.');
 	const branch = getBranch(process.env);
 	let target: DeployTarget;
 	if (typeof options.target === 'string' && options.target.trim() !== '') {
