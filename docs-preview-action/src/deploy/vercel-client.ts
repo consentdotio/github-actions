@@ -92,10 +92,11 @@ function walkFiles(cwd: string): string[] {
 		'.vercel',
 		'out',
 		'dist',
-		'build',
 		'.cache',
 		'.turbo',
 	]);
+	// Only ignore 'build' directory at root level, not nested ones like 'scripts/build'
+	const rootIgnoreDirs = new Set(['build']);
 	const ignoreFiles = new Set([
 		'pnpm-lock.yaml',
 		'yarn.lock',
@@ -103,7 +104,7 @@ function walkFiles(cwd: string): string[] {
 	]);
 	const chosenLockfile = chooseLockfile(cwd);
 
-	function walk(dir: string): string[] {
+	function walk(dir: string, isRoot = false): string[] {
 		const entries = readdirSync(dir, { withFileTypes: true });
 		const out: string[] = [];
 		for (const entry of entries) {
@@ -113,10 +114,14 @@ function walkFiles(cwd: string): string[] {
 			const fullPath = path.join(dir, entry.name);
 			const relativePath = path.relative(cwd, fullPath);
 			if (entry.isDirectory()) {
+				// Only ignore 'build' at root level
+				if (isRoot && rootIgnoreDirs.has(entry.name)) {
+					continue;
+				}
 				if (ignoreDirs.has(entry.name)) {
 					continue;
 				}
-				out.push(...walk(fullPath));
+				out.push(...walk(fullPath, false));
 			} else if (entry.isFile()) {
 				if (fileShouldBeIgnored(entry.name, chosenLockfile, ignoreFiles)) {
 					continue;
@@ -127,7 +132,7 @@ function walkFiles(cwd: string): string[] {
 		return out;
 	}
 
-	const filesList = walk(cwd);
+	const filesList = walk(cwd, true);
 	if (
 		!filesList.includes('package.json') &&
 		existsSync(path.join(cwd, 'package.json'))
@@ -213,6 +218,26 @@ export async function deployToVercel(
 	// Resolve working directory relative to repository workspace, not action directory
 	const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
 	const cwd = path.resolve(workspace, options.workingDirectory || '.');
+	
+	// Debug: Check if scripts folder exists
+	const scriptsPath = path.join(cwd, 'scripts');
+	const scriptsBuildPath = path.join(cwd, 'scripts', 'build');
+	console.log(`📁 Deployment directory: ${cwd}`);
+	console.log(`📁 Scripts folder exists: ${existsSync(scriptsPath)}`);
+	console.log(`📁 Scripts/build folder exists: ${existsSync(scriptsBuildPath)}`);
+	if (existsSync(scriptsPath)) {
+		try {
+			const scriptsContents = readdirSync(scriptsPath, { withFileTypes: true });
+			console.log(`📁 Scripts folder contents: ${scriptsContents.map(e => e.name).join(', ')}`);
+			if (existsSync(scriptsBuildPath)) {
+				const buildContents = readdirSync(scriptsBuildPath, { withFileTypes: true });
+				console.log(`📁 Scripts/build folder contents: ${buildContents.map(e => e.name).join(', ')}`);
+			}
+		} catch (err) {
+			console.log(`⚠️  Error reading scripts directory: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+	
 	const branch = getBranch(process.env);
 	let target: DeployTarget;
 	if (typeof options.target === 'string' && options.target.trim() !== '') {
@@ -238,6 +263,14 @@ export async function deployToVercel(
 	const includePrMeta = prNumber.trim().length > 0;
 
 	const filesList = walkFiles(cwd);
+	// Debug: log scripts-related files
+	const scriptsFiles = filesList.filter((f) => f.startsWith('scripts/'));
+	if (scriptsFiles.length > 0) {
+		console.log(`📦 Including ${scriptsFiles.length} scripts files in deployment`);
+		console.log(`   Examples: ${scriptsFiles.slice(0, 5).join(', ')}${scriptsFiles.length > 5 ? '...' : ''}`);
+	} else {
+		console.log('⚠️  No scripts files found in deployment!');
+	}
 	const files = filesList.map((file) => {
 		const data = readFileSync(path.join(cwd, file));
 		return {
