@@ -196,10 +196,33 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        if [ ! -d "node_modules" ]; then
+          # Use pnpm from PATH if available (set by workflow), otherwise install it
+          if ! command -v pnpm &> /dev/null; then
+            if [ -n "$PNPM_HOME" ]; then
+              export PATH="$PNPM_HOME:$PATH"
+            else
+              core_url="https://get.pnpm.io/install.sh"
+              curl -fsSL "$core_url" | sh -
+              export PNPM_HOME="$HOME/.local/share/pnpm"
+              export PATH="$PNPM_HOME:$PATH"
+            fi
+          fi
+          pnpm install --frozen-lockfile || pnpm install
+        fi
     - name: Run docs preview action (tsx)
       shell: bash
       working-directory: ${{ github.action_path }}
-      run: pnpm -w exec tsx "$GITHUB_ACTION_PATH/src/main.ts"
+      run: |
+        # Ensure pnpm is in PATH
+        if [ -n "$PNPM_HOME" ] && [ -z "$(command -v pnpm)" ]; then
+          export PATH="$PNPM_HOME:$PATH"
+        fi
+        pnpm exec tsx "$GITHUB_ACTION_PATH/src/main.ts"
       env:
         INPUT_SETUP_DOCS: ${{ inputs.setup_docs }}
         INPUT_CONSENT_GIT_TOKEN: ${{ inputs.consent_git_token }}
